@@ -23,6 +23,7 @@ import socket
 import re
 # you may use urllib to encode data appropriately
 import urllib
+from urlparse import urlparse
 
 def help():
     print "httpclient.py [GET/POST] [URL]\n"
@@ -33,20 +34,37 @@ class HTTPResponse(object):
         self.body = body
 
 class HTTPClient(object):
-    #def get_host_port(self,url):
+    def get_host_port(self,url):
+    	host = url.hostname
+    	port = url.port
+    	if port == None:
+    		port = 80
+    	path = url.path
+    	if url.params != "":
+    		path = path + ';' + url.params
+    	elif url.query != "":
+    		path = path + '?' + url.query
+    	elif url.fragment != "":
+    		path = path + '#' + url.fragment
+    	return host,port,path
 
     def connect(self, host, port):
         # use sockets!
-        return None
+        Socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+        Socket.connect((host,port))
+        return Socket
 
     def get_code(self, data):
-        return None
+    	code = int(data.split()[1])
+        return code
 
     def get_headers(self,data):
-        return None
+    	header = data.split("\r\n\r\n")[0]
+        return header
 
     def get_body(self, data):
-        return None
+    	body = data.split("\r\n\r\n")[1]
+        return body
 
     # read everything from the socket
     def recvall(self, sock):
@@ -63,12 +81,37 @@ class HTTPClient(object):
     def GET(self, url, args=None):
         code = 500
         body = ""
+        host,port,path = self.get_host_port(urlparse(url))
+        sock = self.connect(host,port)
+        sock.sendall("GET " + path + " HTTP/1.1\r\n" + "Host: " + host + "\r\n\r\n")
+        response = self.recvall(sock)
+        code = self.get_code(response)
+        body = self.get_body(response)
+        #print code + "\n" + body
+        print response
         return HTTPResponse(code, body)
 
     def POST(self, url, args=None):
         code = 500
         body = ""
+        host,port,path = self.get_host_port(urlparse(url))
+        sock = self.connect(host,port)
+        #sock.sendall
+        arg_length = str(0)
+        argrument = ""
+        if args != None:
+        	argrument = urllib.urlencode(args)
+        	arg_length = str(len(argrument))
+        #arg_length = len(args)
+        request = "POST " + path + " HTTP/1.1\r\nHost: " + host + "\r\nContent-Type: application/x-www-form-urlencoded; charset=utf-8\r\n"
+        request += "Content-Length: " + arg_length + "\r\n\r\n" + argrument
+        sock.sendall(request)
+        response = self.recvall(sock)
+        print response
+        code = self.get_code(response)
+        body = self.get_body(response)
         return HTTPResponse(code, body)
+
 
     def command(self, url, command="GET", args=None):
         if (command == "POST"):
